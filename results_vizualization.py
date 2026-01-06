@@ -39,6 +39,20 @@ eval_dataset_dict = {
 import pandas as pd
 import json
 
+def _extract_score_value(value):
+    while isinstance(value, dict):
+        if "score" in value:
+            value = value.get("score")
+        else:
+            return None
+    return value
+
+
+def _extract_judge_output(value):
+    if isinstance(value, dict):
+        return value.get("judge_output")
+    return None
+
 # Map canonical dataset name to excluded ids (if any)
 EXCLUDED_TENGU_IDS = set(EXCLUDED_QUESTION_IDS_BY_DATASET.get("lightblue/tengu_bench", []))
 
@@ -74,6 +88,16 @@ for model_result_path in model_result_paths:
         except Exception as e2:
             print(f"Failed to parse {model_result_path} with alternative method: {e2}")
             continue
+
+    if "score" not in temp_df.columns:
+        temp_df["score"] = None
+
+    score_payload = temp_df["score"]
+    temp_df["score"] = pd.to_numeric(score_payload.apply(_extract_score_value), errors="coerce")
+    if "judge_output" not in temp_df.columns:
+        judge_output = score_payload.apply(_extract_judge_output)
+        if judge_output.notna().any():
+            temp_df["judge_output"] = judge_output
 
     # Ensure an integer id column for datasets that use id-based exclusions.
     if dataset_safe == "lightblue__tengu_bench":
@@ -368,6 +392,5 @@ offline.plot(fig)
 
 
 # In[ ]:
-
 
 

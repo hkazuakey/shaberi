@@ -31,6 +31,20 @@ eval_dataset_dict = {
     "shisa-ai__ja-mt-bench-1shot": "JA-MT",
 }
 
+def _extract_score_value(value):
+    while isinstance(value, dict):
+        if "score" in value:
+            value = value.get("score")
+        else:
+            return None
+    return value
+
+
+def _extract_judge_output(value):
+    if isinstance(value, dict):
+        return value.get("judge_output")
+    return None
+
 # Helper functions for Japanese text analysis
 def is_japanese_char(char):
     return any([
@@ -75,6 +89,16 @@ for model_result_path in model_result_paths:
     model_judge_counts[model_name].add(judge_id)
         
     df = pd.read_json(model_result_path, lines=True)
+
+    if "score" not in df.columns:
+        df["score"] = None
+
+    score_payload = df["score"]
+    df["score"] = pd.to_numeric(score_payload.apply(_extract_score_value), errors="coerce")
+    if "judge_output" not in df.columns:
+        judge_output = score_payload.apply(_extract_judge_output)
+        if judge_output.notna().any():
+            df["judge_output"] = judge_output
 
     # Apply Tengu per-question exclusions consistently across judges.
     if eval_dataset_key == "lightblue__tengu_bench" and TENGU_EXCLUDED_IDS:
